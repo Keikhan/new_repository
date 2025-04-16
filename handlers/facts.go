@@ -72,20 +72,73 @@ func EditFact(c *fiber.Ctx) error {
 		"Fact":     fact,
 	})
 }
+
 func UpdateFact(c *fiber.Ctx) error {
-	fact := new(models.Fact)
 	id := c.Params("id")
+	var fact models.Fact
 
-	// Parsing the request body
-	if err := c.BodyParser(fact); err != nil {
-		return c.Status(fiber.StatusServiceUnavailable).SendString(err.Error())
+	if err := database.DB.Db.First(&fact, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Fact not found",
+			"data":    nil,
+		})
 	}
 
-	// Write updated values to the database
-	result := database.DB.Db.Model(&fact).Where("id = ?", id).Updates(fact)
-	if result.Error != nil {
-		return EditFact(c)
+	type UpdateFactInput struct {
+		Question string `json:"question"`
+		Answer   string `json:"answer"`
 	}
 
-	return ShowFact(c)
+	var input UpdateFactInput
+	if err := c.BodyParser(&input); err != nil {
+		return c.Status(400).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Invalid input",
+			"data":    nil,
+		})
+	}
+
+	fact.Question = input.Question
+	fact.Answer = input.Answer
+
+	if err := database.DB.Db.Save(&fact).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Could not update fact",
+			"data":    nil,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Fact updated",
+		"data":    fact,
+	})
+}
+
+func DeleteFact(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var fact models.Fact
+
+	if err := database.DB.Db.First(&fact, id).Error; err != nil {
+		return c.Status(404).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Fact not found",
+			"data":    nil,
+		})
+	}
+
+	if err := database.DB.Db.Delete(&fact).Error; err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"status":  "error",
+			"message": "Could not delete fact",
+			"data":    nil,
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"status":  "success",
+		"message": "Fact deleted",
+	})
 }
